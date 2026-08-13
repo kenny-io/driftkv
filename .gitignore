@@ -1,0 +1,12 @@
+# Build output
+dist/
+
+# Dependencies
+node_modules/
+
+# Logs and OS noise
+npm-debug.log*
+.DS_Store
+
+# Local persistence files created while experimenting
+*.drift.json
