@@ -12,10 +12,21 @@
  * - Live-entry counts are enforced against `maxEntries` only after expired
  *   entries have been reclaimed, so a store full of dead entries never
  *   evicts live data.
+ * - Namespaces are prefix views over the single backing map: a view with
+ *   prefix `"users:"` sees exactly the keys starting with `"users:"`. The
+ *   root store is the view with the empty prefix. Because there is one map,
+ *   `maxEntries`, LRU order, and persistence are shared across every view.
  */
 
 import { loadSnapshot, writeSnapshot, type Entry } from "./persistence.js";
 import type { DriftStore, DriftStoreOptions, SetOptions } from "./types.js";
+
+/**
+ * Delimiter inserted between a namespace name and the keys inside it (and
+ * between the segments of nested namespaces). Exposed so callers that
+ * inspect the root store's `keys()` can split full keys back into segments.
+ */
+export const NAMESPACE_DELIMITER = ":";
 
 /**
  * Create a Drift store.
@@ -74,12 +85,15 @@ export function createStore<T = unknown>(
     return entry;
   }
 
-  /** Remove every expired entry; returns the number removed. */
-  function sweep(): number {
+  /**
+   * Remove every expired entry whose key starts with `prefix`; returns the
+   * number removed. The empty prefix sweeps the whole store.
+   */
+  function sweepPrefix(prefix: string): number {
     const now = Date.now();
     let removed = 0;
     for (const [key, entry] of entries) {
-      if (isExpired(entry, now)) {
+      if (key.startsWith(prefix) && isExpired(entry, now)) {
         entries.delete(key);
         removed += 1;
       }
@@ -87,82 +101,130 @@ export function createStore<T = unknown>(
     return removed;
   }
 
-  return {
-    get(key) {
-      const entry = readLive(key);
-      if (entry === undefined) return undefined;
-      // Refresh LRU recency: Map preserves insertion order, so delete +
-      // re-set moves the key to the most-recently-used end.
-      entries.delete(key);
-      entries.set(key, entry);
-      return entry.value;
-    },
+  /**
+   * Build the store view for `prefix`. Every method operates on the shared
+   * backing map with `prefix` prepended to caller keys; the root store is
+   * simply `makeView("")`. Views are cheap closures — no per-view state.
+   */
+  function makeView(prefix: string): DriftStore<T> {
+    return {
+      get(key) {
+        const fullKey = prefix + key;
+        const entry = readLive(fullKey);
+        if (entry === undefined) return undefined;
+        // Refresh LRU recency: Map preserves insertion order, so delete +
+        // re-set moves the key to the most-recently-used end.
+        entries.delete(fullKey);
+        entries.set(fullKey, entry);
+        return entry.value;
+      },
 
-    set(key, value, setOptions?: SetOptions) {
-      if (typeof key !== "string") {
-        throw new TypeError(
-          `driftkv: keys must be strings, got ${typeof key}`,
-        );
-      }
-      const ttlMs = setOptions?.ttlMs ?? defaultTtlMs;
-      if (setOptions?.ttlMs !== undefined) {
-        assertValidTtl(setOptions.ttlMs, "ttlMs");
-      }
-
-      const entry: Entry<T> = { value };
-      if (ttlMs !== undefined) entry.expiresAt = Date.now() + ttlMs;
-
-      // Delete first so an overwrite refreshes recency instead of keeping
-      // the key's old position in the map.
-      const existed = entries.delete(key);
-      entries.set(key, entry);
-
-      if (maxEntries !== undefined && !existed && entries.size > maxEntries) {
-        // Prefer reclaiming expired entries over evicting live ones.
-        if (sweep() === 0 || entries.size > maxEntries) {
-          evictDownTo(entries, maxEntries);
+      set(key, value, setOptions?: SetOptions) {
+        if (typeof key !== "string") {
+          throw new TypeError(
+            `driftkv: keys must be strings, got ${typeof key}`,
+          );
         }
-      }
-    },
+        const ttlMs = setOptions?.ttlMs ?? defaultTtlMs;
+        if (setOptions?.ttlMs !== undefined) {
+          assertValidTtl(setOptions.ttlMs, "ttlMs");
+        }
 
-    has(key) {
-      return readLive(key) !== undefined;
-    },
+        const entry: Entry<T> = { value };
+        if (ttlMs !== undefined) entry.expiresAt = Date.now() + ttlMs;
 
-    delete(key) {
-      // An expired entry no longer exists as far as callers are concerned,
-      // so deleting one reports `false` even though it frees the slot.
-      const wasLive = readLive(key) !== undefined;
-      entries.delete(key);
-      return wasLive;
-    },
+        // Delete first so an overwrite refreshes recency instead of keeping
+        // the key's old position in the map.
+        const fullKey = prefix + key;
+        const existed = entries.delete(fullKey);
+        entries.set(fullKey, entry);
 
-    clear() {
-      entries.clear();
-    },
+        // Capacity is a property of the whole store, not the view, so the
+        // reclaim/evict pass always runs store-wide: a set in one namespace
+        // may evict the LRU entry of another.
+        if (maxEntries !== undefined && !existed && entries.size > maxEntries) {
+          // Prefer reclaiming expired entries over evicting live ones.
+          if (sweepPrefix("") === 0 || entries.size > maxEntries) {
+            evictDownTo(entries, maxEntries);
+          }
+        }
+      },
 
-    keys() {
-      sweep();
-      return [...entries.keys()];
-    },
+      has(key) {
+        return readLive(prefix + key) !== undefined;
+      },
 
-    size() {
-      sweep();
-      return entries.size;
-    },
+      delete(key) {
+        // An expired entry no longer exists as far as callers are concerned,
+        // so deleting one reports `false` even though it frees the slot.
+        const fullKey = prefix + key;
+        const wasLive = readLive(fullKey) !== undefined;
+        entries.delete(fullKey);
+        return wasLive;
+      },
 
-    sweep,
+      clear() {
+        if (prefix === "") {
+          entries.clear();
+          return;
+        }
+        for (const key of entries.keys()) {
+          if (key.startsWith(prefix)) entries.delete(key);
+        }
+      },
 
-    flush() {
-      if (persistPath === undefined) {
-        throw new Error(
-          "driftkv: flush() requires the store to be created with persistPath",
-        );
-      }
-      sweep();
-      writeSnapshot(persistPath, [...entries.entries()]);
-    },
-  };
+      keys() {
+        sweepPrefix(prefix);
+        if (prefix === "") return [...entries.keys()];
+        const scoped: string[] = [];
+        for (const key of entries.keys()) {
+          // Views report keys relative to their prefix, mirroring how the
+          // caller wrote them.
+          if (key.startsWith(prefix)) scoped.push(key.slice(prefix.length));
+        }
+        return scoped;
+      },
+
+      size() {
+        sweepPrefix(prefix);
+        if (prefix === "") return entries.size;
+        let count = 0;
+        for (const key of entries.keys()) {
+          if (key.startsWith(prefix)) count += 1;
+        }
+        return count;
+      },
+
+      sweep() {
+        return sweepPrefix(prefix);
+      },
+
+      flush() {
+        if (persistPath === undefined) {
+          throw new Error(
+            "driftkv: flush() requires the store to be created with persistPath",
+          );
+        }
+        // Persistence is per-store, not per-view: a flush from any namespace
+        // snapshots the whole backing map (with full, prefixed keys).
+        sweepPrefix("");
+        writeSnapshot(persistPath, [...entries.entries()]);
+      },
+
+      namespace(name) {
+        if (typeof name !== "string" || name.length === 0) {
+          throw new TypeError(
+            `driftkv: namespace name must be a non-empty string, got ${
+              typeof name === "string" ? "an empty string" : typeof name
+            }`,
+          );
+        }
+        return makeView(prefix + name + NAMESPACE_DELIMITER);
+      },
+    };
+  }
+
+  return makeView("");
 }
 
 function assertValidTtl(ttlMs: number, name: string): void {
