@@ -8,7 +8,9 @@
  * - Expiry is lazy: an expired entry may linger in the map until a read
  *   touches it, `sweep()` runs, or eviction removes it. Every public
  *   observation (`get`/`has`/`keys`/`size`) treats expired entries as gone,
- *   so laziness is never visible through the API.
+ *   so laziness is never visible through the API. The expiry rules
+ *   themselves live in `expiry.ts`; this module only decides *when* they
+ *   are applied.
  * - Live-entry counts are enforced against `maxEntries` only after expired
  *   entries have been reclaimed, so a store full of dead entries never
  *   evicts live data.
@@ -18,6 +20,7 @@
  *   `maxEntries`, LRU order, and persistence are shared across every view.
  */
 
+import { assertValidTtl, isExpired, sweepExpired } from "./expiry.js";
 import { loadSnapshot, writeSnapshot, type Entry } from "./persistence.js";
 import type { DriftStore, DriftStoreOptions, SetOptions } from "./types.js";
 
@@ -63,19 +66,15 @@ export function createStore<T = unknown>(
     if (loaded !== undefined) {
       const now = Date.now();
       for (const [key, entry] of loaded) {
-        if (entry.expiresAt !== undefined && entry.expiresAt <= now) continue;
+        if (isExpired(entry, now)) continue;
         entries.set(key, entry);
       }
       if (maxEntries !== undefined) evictDownTo(entries, maxEntries);
     }
   }
 
-  function isExpired(entry: Entry<T>, now: number): boolean {
-    return entry.expiresAt !== undefined && entry.expiresAt <= now;
-  }
-
   /** Read an entry, reclaiming it if expired. Returns undefined on miss. */
-  function readLive(key: string): Entry<T> | undefined {
+  function readLiveEntry(key: string): Entry<T> | undefined {
     const entry = entries.get(key);
     if (entry === undefined) return undefined;
     if (isExpired(entry, Date.now())) {
@@ -90,6 +89,7 @@ export function createStore<T = unknown>(
    * number removed. The empty prefix sweeps the whole store.
    */
   function sweepPrefix(prefix: string): number {
+    if (prefix === "") return sweepExpired(entries);
     const now = Date.now();
     let removed = 0;
     for (const [key, entry] of entries) {
@@ -110,7 +110,7 @@ export function createStore<T = unknown>(
     return {
       get(key) {
         const fullKey = prefix + key;
-        const entry = readLive(fullKey);
+        const entry = readLiveEntry(fullKey);
         if (entry === undefined) return undefined;
         // Refresh LRU recency: Map preserves insertion order, so delete +
         // re-set moves the key to the most-recently-used end.
@@ -151,14 +151,14 @@ export function createStore<T = unknown>(
       },
 
       has(key) {
-        return readLive(prefix + key) !== undefined;
+        return readLiveEntry(prefix + key) !== undefined;
       },
 
       delete(key) {
         // An expired entry no longer exists as far as callers are concerned,
         // so deleting one reports `false` even though it frees the slot.
         const fullKey = prefix + key;
-        const wasLive = readLive(fullKey) !== undefined;
+        const wasLive = readLiveEntry(fullKey) !== undefined;
         entries.delete(fullKey);
         return wasLive;
       },
@@ -225,14 +225,6 @@ export function createStore<T = unknown>(
   }
 
   return makeView("");
-}
-
-function assertValidTtl(ttlMs: number, name: string): void {
-  if (typeof ttlMs !== "number" || Number.isNaN(ttlMs) || ttlMs <= 0) {
-    throw new TypeError(
-      `driftkv: ${name} must be a positive number of milliseconds, got ${ttlMs}`,
-    );
-  }
 }
 
 /** Evict least-recently-used entries until the map holds at most `limit`. */
