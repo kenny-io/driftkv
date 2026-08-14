@@ -26,6 +26,8 @@ cache.get("session:9f2c"); // "alice"
   read with an explicit `sweep()` for eager reclamation.
 - **LRU eviction.** Cap the store with `maxEntries` and the
   least-recently-used entry is evicted first.
+- **Namespaces.** Carve one store into isolated, scoped views with
+  `store.namespace("users")` — no extra stores, no manual key prefixing.
 - **Optional persistence.** Point the store at a JSON file and it reloads
   on startup; `flush()` writes atomically (write-then-rename) so a crash
   never corrupts an existing snapshot.
@@ -101,12 +103,70 @@ at startup rather than at first use.
 | `size()`                    | `number`         | Count of live entries.                                                                                              |
 | `sweep()`                   | `number`         | Eagerly remove every expired entry; returns how many were removed.                                                  |
 | `flush()`                   | `void`           | Synchronously persist current entries to `persistPath`. Throws if the store has no `persistPath`.                   |
+| `namespace(name)`           | `DriftNamespace<T>` | A scoped view of the store whose keys are isolated under `name`. See [Namespaces](#namespaces).                  |
 
 #### `set` options
 
 | Option  | Type     | Default        | Description                                                     |
 | ------- | -------- | -------------- | --------------------------------------------------------------- |
 | `ttlMs` | `number` | `defaultTtlMs` | Time-to-live for this entry, overriding the store-wide default. |
+
+### Namespaces
+
+`store.namespace(name)` returns a **scoped view** of the same store. The
+view has the full store API — same methods, same types — but every key is
+transparently prefixed with `name` plus the `":"` delimiter, so views with
+different names never see each other's entries:
+
+```ts
+import { createStore } from "driftkv";
+
+const store = createStore<string>({ maxEntries: 1000 });
+
+const users = store.namespace("users");
+const sessions = store.namespace("sessions");
+
+users.set("42", "Ada");
+sessions.set("42", "9f2c…"); // no collision with users' "42"
+
+users.get("42"); // "Ada"
+users.keys(); // ["42"] — relative to the namespace, prefix stripped
+users.size(); // 1
+sessions.clear(); // removes only sessions' entries
+```
+
+Namespaces nest — call `namespace()` on a view to scope further:
+
+```ts
+const euUsers = store.namespace("users").namespace("eu");
+euUsers.set("42", "Grace"); // stored under "users:eu:42"
+```
+
+A `":"` inside a name is equivalent to nesting: `store.namespace("users:eu")`
+and `store.namespace("users").namespace("eu")` address the same entries.
+
+Semantics worth knowing:
+
+- **Views are windows, not copies.** A namespace is a cheap wrapper around
+  the parent store; two views with the same name see the same entries, and
+  no state is allocated per view.
+- **Scoped methods.** `keys()`, `size()`, `clear()`, and `sweep()` operate
+  only on the view's entries, and `keys()` returns keys relative to the
+  view. A parent view (including the root store) sees nested entries under
+  their full prefixed keys.
+- **Shared budget.** `maxEntries`, `defaultTtlMs`, and LRU order belong to
+  the store, not the view — a `set` in one namespace may evict the
+  least-recently-used entry of another.
+- **Shared persistence.** `flush()` on any view writes the **entire**
+  store, and prefixed keys round-trip through snapshots unchanged.
+- **Plain prefixing.** Keys are prefixed with `name + ":"`, nothing more.
+  A root-level `store.set("users:42", …)` is therefore visible as `"42"`
+  inside `store.namespace("users")` — namespaces are a convention over key
+  strings, not a separate keyspace.
+
+The delimiter is exported as `NAMESPACE_DELIMITER`, and the view type as
+`DriftNamespace<T>` (structurally identical to `DriftStore<T>`, so views
+can be passed anywhere a store is expected).
 
 ### TTL semantics
 
@@ -150,6 +210,7 @@ perturb eviction order.
 | Non-positive / non-integer `maxEntries`                   | `TypeError` at `createStore`   |
 | Non-positive `defaultTtlMs` or `ttlMs`                    | `TypeError`                    |
 | Non-string key passed to `set`                            | `TypeError`                    |
+| Empty or non-string name passed to `namespace`            | `TypeError`                    |
 | `flush()` without `persistPath`                           | `Error`                        |
 | Corrupt / non-snapshot / wrong-version persist file       | `Error` at `createStore`       |
 

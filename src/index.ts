@@ -4,5 +4,10 @@
  * Public entry point. See README.md for the full API reference.
  */
 
-export { createStore } from "./store.js";
-export type { DriftStore, DriftStoreOptions, SetOptions } from "./types.js";
+export { createStore, NAMESPACE_DELIMITER } from "./store.js";
+export type {
+  DriftNamespace,
+  DriftStore,
+  DriftStoreOptions,
+  SetOptions,
+} from "./types.js";

@@ -86,6 +86,32 @@ export interface DriftStore<T = unknown> {
    * Synchronously write the current entries to `persistPath` as JSON.
    * Expired entries are swept first so they are never persisted.
    * Throws if the store was created without `persistPath`.
+   *
+   * Persistence is per-store: calling `flush()` on a namespace view writes
+   * the entire store (all namespaces), not just the view's entries.
    */
   flush(): void;
+
+  /**
+   * Return a scoped view of this store. The view shares the store's data,
+   * `maxEntries` budget, TTL default, and persistence, but every key is
+   * transparently prefixed with `name` plus the `":"` delimiter, so views
+   * with different names never see each other's entries.
+   *
+   * `keys()`, `size()`, `clear()`, and `sweep()` on a view are scoped to
+   * the view's entries, and `keys()` reports keys relative to the view
+   * (the prefix is stripped). Calling `namespace()` on a view nests: keys
+   * of `store.namespace("a").namespace("b")` live under `"a:b:"`.
+   *
+   * `name` must be a non-empty string; otherwise a `TypeError` is thrown.
+   */
+  namespace(name: string): DriftNamespace<T>;
 }
+
+/**
+ * A namespaced view of a {@link DriftStore}. Structurally identical to the
+ * store itself — every method is available and behaves the same, scoped to
+ * the namespace — so a `DriftNamespace<T>` can be passed anywhere a
+ * `DriftStore<T>` is expected.
+ */
+export type DriftNamespace<T = unknown> = DriftStore<T>;
