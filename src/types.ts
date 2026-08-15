@@ -71,6 +71,9 @@ export interface DriftStore<T = unknown> {
    */
   get(key: string): T | undefined;
 
+  /** Return a live value without changing its LRU recency. */
+  peek(key: string): T | undefined;
+
   /**
    * Store `value` under `key`. Overwrites any existing entry and marks the
    * key as most-recently-used. May evict the LRU entry when `maxEntries`
