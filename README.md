@@ -98,6 +98,7 @@ at startup rather than at first use.
 | `set(key, value, options?)` | `void`           | Store `value` under `key`. Overwrites refresh both the TTL and LRU recency. May evict when `maxEntries` is reached. |
 | `has(key)`                  | `boolean`        | Whether a live entry exists. Does **not** affect LRU recency.                                                       |
 | `ttl(key)`                  | `number \| undefined` | Remaining time-to-live in ms, or `undefined` if the entry is absent, expired, or has no expiry. Does **not** affect LRU recency. |
+| `touch(key, options?)`      | `boolean`        | Mark a live entry most-recently-used without changing its value; restarts its TTL from `options.ttlMs` or `defaultTtlMs` when set. `false` if absent or expired. |
 | `delete(key)`               | `boolean`        | Remove the entry. `true` if a live entry was removed.                                                               |
 | `clear()`                   | `void`           | Remove all entries.                                                                                                 |
 | `keys()`                    | `string[]`       | Live keys, ordered least- to most-recently-used.                                                                    |

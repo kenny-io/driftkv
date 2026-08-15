@@ -91,6 +91,14 @@ export interface DriftStore<T = unknown> {
    */
   ttl(key: string): number | undefined;
 
+  /**
+   * Refresh a live entry's LRU recency without changing its value, and
+   * restart its TTL from `options.ttlMs` or the store default when either is
+   * set (an existing expiry is otherwise kept). Emits no event. Returns
+   * `false` when `key` is absent or expired.
+   */
+  touch(key: string, options?: SetOptions): boolean;
+
   /** Remove the entry for `key`. Returns `true` if an entry was removed. */
   delete(key: string): boolean;
 

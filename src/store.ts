@@ -195,6 +195,24 @@ export function createStore<T = unknown>(
         return entry.expiresAt - Date.now();
       },
 
+      touch(key, touchOptions?: SetOptions) {
+        const fullKey = prefix + key;
+        const entry = readLiveEntry(fullKey);
+        if (entry === undefined) return false;
+        const ttlMs = touchOptions?.ttlMs ?? defaultTtlMs;
+        if (touchOptions?.ttlMs !== undefined) {
+          assertValidTtl(touchOptions.ttlMs, "ttlMs");
+        }
+        // Without any TTL to apply the existing expiry (if any) is kept;
+        // touch never turns an expiring entry into a permanent one.
+        if (ttlMs !== undefined) entry.expiresAt = Date.now() + ttlMs;
+        // Map preserves insertion order, so delete + re-set moves the key to
+        // the most-recently-used end. No event: the value did not change.
+        entries.delete(fullKey);
+        entries.set(fullKey, entry);
+        return true;
+      },
+
       delete(key) {
         // An expired entry no longer exists as far as callers are concerned,
         // so deleting one reports `false` even though it frees the slot.
