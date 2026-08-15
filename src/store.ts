@@ -7,7 +7,8 @@
  *   (existence checks should not perturb eviction order).
  * - Expiry is lazy: an expired entry may linger in the map until a read
  *   touches it, `sweep()` runs, or eviction removes it. Every public
- *   observation (`get`/`has`/`keys`/`size`) treats expired entries as gone,
+ *   observation (`get`/`has`/`keys`/`size`/`isEmpty`) treats expired entries
+ *   as gone,
  *   so laziness is never visible through the API. The expiry rules
  *   themselves live in `expiry.ts`; this module only decides *when* they
  *   are applied.
@@ -253,6 +254,15 @@ export function createStore<T = unknown>(
           if (key.startsWith(prefix)) count += 1;
         }
         return count;
+      },
+
+      isEmpty() {
+        sweepPrefix(prefix);
+        if (prefix === "") return entries.size === 0;
+        for (const key of entries.keys()) {
+          if (key.startsWith(prefix)) return false;
+        }
+        return true;
       },
 
       sweep() {
