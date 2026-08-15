@@ -114,6 +114,13 @@ export interface DriftStore<T = unknown> {
   /** All live values, ordered from least- to most-recently-used. */
   values(): T[];
 
+  /**
+   * All live `[key, value]` pairs, ordered from least- to most-recently-used.
+   * Keys are relative to the view, matching `keys()`. Reading does not affect
+   * recency.
+   */
+  entries(): Array<[string, T]>;
+
   /** Number of live entries. */
   size(): number;
 

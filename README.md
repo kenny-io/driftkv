@@ -104,6 +104,7 @@ at startup rather than at first use.
 | `clear()`                   | `void`           | Remove all entries.                                                                                                 |
 | `keys()`                    | `string[]`       | Live keys, ordered least- to most-recently-used.                                                                    |
 | `values()`                  | `T[]`            | Live values, ordered least- to most-recently-used.                                                                  |
+| `entries()`                 | `Array<[string, T]>` | Live `[key, value]` pairs, ordered least- to most-recently-used; keys are relative to the view.                 |
 | `size()`                    | `number`         | Count of live entries.                                                                                              |
 | `isEmpty()`                 | `boolean`        | Whether the store or namespace view contains no live entries.                                                       |
 | `sweep()`                   | `number`         | Eagerly remove every expired entry; returns how many were removed.                                                  |
