@@ -102,6 +102,13 @@ export interface DriftStore<T = unknown> {
    */
   touch(key: string, options?: SetOptions): boolean;
 
+  /**
+   * Read the value for `key` without touching LRU recency. Returns
+   * `undefined` when absent or expired. Use it for diagnostics and metrics
+   * that must not keep an entry alive.
+   */
+  peek(key: string): T | undefined;
+
   /** Remove the entry for `key`. Returns `true` if an entry was removed. */
   delete(key: string): boolean;
 

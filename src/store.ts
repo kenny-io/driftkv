@@ -200,6 +200,11 @@ export function createStore<T = unknown>(
         return entry.expiresAt - Date.now();
       },
 
+      peek(key) {
+        // Read-only: no delete + re-set, so the entry keeps its position.
+        return readLiveEntry(prefix + key)?.value;
+      },
+
       touch(key, touchOptions?: SetOptions) {
         const fullKey = prefix + key;
         const entry = readLiveEntry(fullKey);

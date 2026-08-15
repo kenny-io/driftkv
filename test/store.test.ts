@@ -182,6 +182,17 @@ describe("TTL expiry", () => {
     expect(store.touch("a")).toBe(false);
   });
 
+  it("peek() reads without refreshing recency", () => {
+    const store = createStore<string>({ maxEntries: 2 });
+    store.set("a", "1");
+    store.set("b", "2");
+    expect(store.peek("a")).toBe("1");
+    // "a" stayed least-recently-used, so the next insert evicts it.
+    store.set("c", "3");
+    expect(store.has("a")).toBe(false);
+    expect(store.peek("missing")).toBeUndefined();
+  });
+
   it("applies defaultTtlMs when set() passes no ttl", () => {
     const store = createStore<string>({ defaultTtlMs: 500 });
     store.set("k", "v");
