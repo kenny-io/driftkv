@@ -7,7 +7,7 @@
  *   and `peek` reads without perturbing eviction order.
  * - Expiry is lazy: an expired entry may linger in the map until a read
  *   touches it, `sweep()` runs, or eviction removes it. Every public
- *   observation (`get`/`has`/`keys`/`size`/`isEmpty`) treats expired entries
+ *   observation (`get`/`has`/`keys`/`values`/`size`/`isEmpty`) treats expired entries
  *   as gone,
  *   so laziness is never visible through the API. The expiry rules
  *   themselves live in `expiry.ts`; this module only decides *when* they
@@ -246,6 +246,17 @@ export function createStore<T = unknown>(
           // Views report keys relative to their prefix, mirroring how the
           // caller wrote them.
           if (key.startsWith(prefix)) scoped.push(key.slice(prefix.length));
+        }
+        return scoped;
+      },
+
+      values() {
+        sweepPrefix(prefix);
+        const scoped: T[] = [];
+        for (const [key, entry] of entries) {
+          if (prefix === "" || key.startsWith(prefix)) {
+            scoped.push(entry.value);
+          }
         }
         return scoped;
       },

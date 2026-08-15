@@ -103,6 +103,7 @@ at startup rather than at first use.
 | `delete(key)`               | `boolean`        | Remove the entry. `true` if a live entry was removed.                                                               |
 | `clear()`                   | `void`           | Remove all entries.                                                                                                 |
 | `keys()`                    | `string[]`       | Live keys, ordered least- to most-recently-used.                                                                    |
+| `values()`                  | `T[]`            | Live values, ordered least- to most-recently-used.                                                                  |
 | `size()`                    | `number`         | Count of live entries.                                                                                              |
 | `isEmpty()`                 | `boolean`        | Whether the store or namespace view contains no live entries.                                                       |
 | `sweep()`                   | `number`         | Eagerly remove every expired entry; returns how many were removed.                                                  |
@@ -188,8 +189,8 @@ Semantics worth knowing:
 - **Views are windows, not copies.** A namespace is a cheap wrapper around
   the parent store; two views with the same name see the same entries, and
   no state is allocated per view.
-- **Scoped methods.** `keys()`, `size()`, `clear()`, and `sweep()` operate
-  only on the view's entries, and `keys()` returns keys relative to the
+- **Scoped methods.** `keys()`, `values()`, `size()`, `clear()`, and `sweep()`
+  operate only on the view's entries, and `keys()` returns keys relative to the
   view. A parent view (including the root store) sees nested entries under
   their full prefixed keys.
 - **Shared budget.** `maxEntries`, `defaultTtlMs`, and LRU order belong to

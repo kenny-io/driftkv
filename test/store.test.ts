@@ -73,6 +73,18 @@ describe("basic operations", () => {
     expect(store.size()).toBe(2);
   });
 
+  it("values() reflects LRU order and namespace scope", () => {
+    const store = createStore<number>();
+    const users = store.namespace("users");
+    store.set("other", 1);
+    users.set("a", 2);
+    users.set("b", 3);
+    expect(store.values()).toEqual([1, 2, 3]);
+    expect(users.values()).toEqual([2, 3]);
+    users.get("a");
+    expect(users.values()).toEqual([3, 2]);
+  });
+
   it("isEmpty() reflects live entries within each view", () => {
     const store = createStore();
     const users = store.namespace("users");
