@@ -4,7 +4,7 @@
  * Invariants:
  * - The backing `Map` is ordered least- to most-recently-used. `get` and
  *   `set` re-insert the key to refresh recency; `has` deliberately does not
- *   (existence checks should not perturb eviction order).
+ *   and `peek` reads without perturbing eviction order.
  * - Expiry is lazy: an expired entry may linger in the map until a read
  *   touches it, `sweep()` runs, or eviction removes it. Every public
  *   observation (`get`/`has`/`keys`/`size`/`isEmpty`) treats expired entries
@@ -148,6 +148,10 @@ export function createStore<T = unknown>(
         entries.delete(fullKey);
         entries.set(fullKey, entry);
         return entry.value;
+      },
+
+      peek(key) {
+        return readLiveEntry(prefix + key)?.value;
       },
 
       set(key, value, setOptions?: SetOptions) {

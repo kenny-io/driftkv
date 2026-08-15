@@ -39,6 +39,15 @@ describe("basic operations", () => {
     expect(store.has("b")).toBe(false);
   });
 
+  it("peek() reads without refreshing LRU recency", () => {
+    const store = createStore<number>({ maxEntries: 2 });
+    store.set("a", 1);
+    store.set("b", 2);
+    expect(store.peek("a")).toBe(1);
+    store.set("c", 3);
+    expect(store.peek("a")).toBeUndefined();
+  });
+
   it("delete() removes entries and reports whether one existed", () => {
     const store = createStore();
     store.set("a", 1);
