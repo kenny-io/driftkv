@@ -101,6 +101,15 @@ export function createStore<T = unknown>(
     }
   }
 
+  /**
+   * Whether a full key belongs to the view rooted at `prefix`. Every view
+   * method scans the shared map with this predicate; keeping it in one place
+   * means the empty-prefix root view and namespaced views cannot drift.
+   */
+  function isInScope(prefix: string, key: string): boolean {
+    return prefix === "" || key.startsWith(prefix);
+  }
+
   /** Read an entry, reclaiming it if expired. Returns undefined on miss. */
   function readLiveEntry(key: string): Entry<T> | undefined {
     const entry = entries.get(key);
@@ -123,7 +132,7 @@ export function createStore<T = unknown>(
     const now = Date.now();
     let removed = 0;
     for (const [key, entry] of entries) {
-      if ((prefix === "" || key.startsWith(prefix)) && isExpired(entry, now)) {
+      if (isInScope(prefix, key) && isExpired(entry, now)) {
         entries.delete(key);
         emit("expire", { key });
         removed += 1;
@@ -254,7 +263,7 @@ export function createStore<T = unknown>(
         sweepPrefix(prefix);
         const scoped: T[] = [];
         for (const [key, entry] of entries) {
-          if (prefix === "" || key.startsWith(prefix)) {
+          if (isInScope(prefix, key)) {
             scoped.push(entry.value);
           }
         }
