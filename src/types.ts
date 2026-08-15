@@ -111,6 +111,9 @@ export interface DriftStore<T = unknown> {
   /** All live keys, ordered from least- to most-recently-used. */
   keys(): string[];
 
+  /** All live values, ordered from least- to most-recently-used. */
+  values(): T[];
+
   /** Number of live entries. */
   size(): number;
 
