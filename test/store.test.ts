@@ -133,6 +133,25 @@ describe("TTL expiry", () => {
     expect(store.ttl("a")).toBeUndefined();
   });
 
+  it("touch() refreshes ttl and recency without changing the value", () => {
+    const store = createStore<string>({ maxEntries: 2 });
+    store.set("a", "1", { ttlMs: 1000 });
+    store.set("b", "2");
+    vi.advanceTimersByTime(800);
+    expect(store.touch("a")).toBe(true);
+    // No TTL supplied and no store default: the original expiry stands.
+    expect(store.ttl("a")).toBe(200);
+    expect(store.touch("a", { ttlMs: 1000 })).toBe(true);
+    expect(store.ttl("a")).toBe(1000);
+    expect(store.get("a")).toBe("1");
+    // "a" is now most-recently-used, so the next insert evicts "b".
+    store.set("c", "3");
+    expect(store.has("b")).toBe(false);
+    expect(store.touch("missing")).toBe(false);
+    vi.advanceTimersByTime(1001);
+    expect(store.touch("a")).toBe(false);
+  });
+
   it("applies defaultTtlMs when set() passes no ttl", () => {
     const store = createStore<string>({ defaultTtlMs: 500 });
     store.set("k", "v");
