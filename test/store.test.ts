@@ -116,6 +116,23 @@ describe("TTL expiry", () => {
     expect(store.has("k")).toBe(false);
   });
 
+  it("reports remaining ttl without touching recency", () => {
+    const store = createStore<string>({ maxEntries: 2 });
+    store.set("a", "1", { ttlMs: 1000 });
+    store.set("b", "2");
+    vi.advanceTimersByTime(400);
+    expect(store.ttl("a")).toBe(600);
+    expect(store.ttl("b")).toBeUndefined();
+    expect(store.ttl("missing")).toBeUndefined();
+    // Inspecting "a" must not make it most-recently-used: the next insert
+    // evicts "a", not "b".
+    store.set("c", "3");
+    expect(store.has("a")).toBe(false);
+    expect(store.has("b")).toBe(true);
+    vi.advanceTimersByTime(601);
+    expect(store.ttl("a")).toBeUndefined();
+  });
+
   it("applies defaultTtlMs when set() passes no ttl", () => {
     const store = createStore<string>({ defaultTtlMs: 500 });
     store.set("k", "v");

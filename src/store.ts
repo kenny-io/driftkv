@@ -187,6 +187,14 @@ export function createStore<T = unknown>(
         return readLiveEntry(prefix + key) !== undefined;
       },
 
+      ttl(key) {
+        const entry = readLiveEntry(prefix + key);
+        if (entry?.expiresAt === undefined) return undefined;
+        // readLiveEntry already dropped anything at or past expiry, so the
+        // remainder is strictly positive here.
+        return entry.expiresAt - Date.now();
+      },
+
       delete(key) {
         // An expired entry no longer exists as far as callers are concerned,
         // so deleting one reports `false` even though it frees the slot.

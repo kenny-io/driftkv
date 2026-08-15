@@ -84,6 +84,13 @@ export interface DriftStore<T = unknown> {
    */
   has(key: string): boolean;
 
+  /**
+   * Remaining time-to-live for `key` in milliseconds, or `undefined` when
+   * the entry is absent, expired, or has no expiry. Does not affect LRU
+   * recency, so pollers can inspect freshness without pinning entries.
+   */
+  ttl(key: string): number | undefined;
+
   /** Remove the entry for `key`. Returns `true` if an entry was removed. */
   delete(key: string): boolean;
 
