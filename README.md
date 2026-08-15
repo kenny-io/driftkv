@@ -103,6 +103,7 @@ at startup rather than at first use.
 | `clear()`                   | `void`           | Remove all entries.                                                                                                 |
 | `keys()`                    | `string[]`       | Live keys, ordered least- to most-recently-used.                                                                    |
 | `size()`                    | `number`         | Count of live entries.                                                                                              |
+| `isEmpty()`                 | `boolean`        | Whether the store or namespace view contains no live entries.                                                       |
 | `sweep()`                   | `number`         | Eagerly remove every expired entry; returns how many were removed.                                                  |
 | `flush()`                   | `void`           | Synchronously persist current entries to `persistPath`. Throws if the store has no `persistPath`.                   |
 | `namespace(name)`           | `DriftNamespace<T>` | A scoped view of the store whose keys are isolated under `name`. See [Namespaces](#namespaces).                  |

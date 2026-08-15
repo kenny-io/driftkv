@@ -64,6 +64,15 @@ describe("basic operations", () => {
     expect(store.size()).toBe(2);
   });
 
+  it("isEmpty() reflects live entries within each view", () => {
+    const store = createStore();
+    const users = store.namespace("users");
+    expect(store.isEmpty()).toBe(true);
+    store.set("other", 1);
+    expect(store.isEmpty()).toBe(false);
+    expect(users.isEmpty()).toBe(true);
+  });
+
   it("stores falsy and complex values faithfully", () => {
     const store = createStore<unknown>();
     store.set("zero", 0);

@@ -111,6 +111,9 @@ export interface DriftStore<T = unknown> {
   /** Number of live entries. */
   size(): number;
 
+  /** Whether the store or namespace view contains no live entries. */
+  isEmpty(): boolean;
+
   /**
    * Eagerly remove every expired entry and return how many were removed.
    * Expiry is otherwise lazy (checked on read), so long-lived stores with
