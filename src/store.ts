@@ -261,6 +261,17 @@ export function createStore<T = unknown>(
         return scoped;
       },
 
+      entries() {
+        sweepPrefix(prefix);
+        const scoped: Array<[string, T]> = [];
+        for (const [key, entry] of entries) {
+          if (prefix === "" || key.startsWith(prefix)) {
+            scoped.push([key.slice(prefix.length), entry.value]);
+          }
+        }
+        return scoped;
+      },
+
       size() {
         sweepPrefix(prefix);
         if (prefix === "") return entries.size;

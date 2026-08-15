@@ -182,6 +182,15 @@ describe("TTL expiry", () => {
     expect(store.touch("a")).toBe(false);
   });
 
+  it("entries() lists live pairs in LRU order without touching recency", () => {
+    const store = createStore<string>({ maxEntries: 2 });
+    store.set("a", "1");
+    store.set("b", "2");
+    expect(store.entries()).toEqual([["a", "1"], ["b", "2"]]);
+    store.set("c", "3");
+    expect(store.entries()).toEqual([["b", "2"], ["c", "3"]]);
+  });
+
   it("applies defaultTtlMs when set() passes no ttl", () => {
     const store = createStore<string>({ defaultTtlMs: 500 });
     store.set("k", "v");
