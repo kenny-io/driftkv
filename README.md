@@ -104,12 +104,46 @@ at startup rather than at first use.
 | `sweep()`                   | `number`         | Eagerly remove every expired entry; returns how many were removed.                                                  |
 | `flush()`                   | `void`           | Synchronously persist current entries to `persistPath`. Throws if the store has no `persistPath`.                   |
 | `namespace(name)`           | `DriftNamespace<T>` | A scoped view of the store whose keys are isolated under `name`. See [Namespaces](#namespaces).                  |
+| `on(event, listener)`       | `void`           | Subscribe to a lifecycle event: `"set"`, `"delete"`, `"expire"`, or `"evict"`. See [Events](#events).               |
+| `off(event, listener)`      | `void`           | Remove a listener previously registered with `on`.                                                                  |
 
 #### `set` options
 
 | Option  | Type     | Default        | Description                                                     |
 | ------- | -------- | -------------- | --------------------------------------------------------------- |
 | `ttlMs` | `number` | `defaultTtlMs` | Time-to-live for this entry, overriding the store-wide default. |
+
+### Events
+
+Stores emit synchronous lifecycle events so callers can observe writes,
+deletions, TTL reclamation, and LRU pressure without polling:
+
+- `"set"` — after every write.
+- `"delete"` — after `delete()` removes a live entry.
+- `"expire"` — when an expired entry is reclaimed, lazily on read or
+  eagerly during `sweep()`.
+- `"evict"` — when the LRU policy removes an entry to satisfy `maxEntries`.
+
+Listeners receive `{ key }`, where `key` is always the full key as stored
+in the root store (namespace prefixes included), and fire in registration
+order. Registration is store-wide no matter which view you call `on` from,
+duplicate registrations of the same listener are idempotent, and a
+listener that throws is silently ignored so an observer can never break a
+store operation. Bulk `clear()` deliberately emits nothing.
+
+```ts
+import { createStore } from "driftkv";
+
+const store = createStore<number>({ maxEntries: 1000 });
+
+store.on("evict", ({ key }) => {
+  console.warn(`cache pressure: evicted ${key}`);
+});
+
+store.on("expire", ({ key }) => {
+  metrics.increment("drift.expired", { key });
+});
+```
 
 ### Namespaces
 

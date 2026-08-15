@@ -20,9 +20,16 @@
  *   `maxEntries`, LRU order, and persistence are shared across every view.
  */
 
-import { assertValidTtl, isExpired, sweepExpired } from "./expiry.js";
+import { assertValidTtl, isExpired } from "./expiry.js";
 import { loadSnapshot, writeSnapshot, type Entry } from "./persistence.js";
-import type { DriftStore, DriftStoreOptions, SetOptions } from "./types.js";
+import type {
+  DriftStore,
+  DriftStoreEvent,
+  DriftStoreEventPayload,
+  DriftStoreListener,
+  DriftStoreOptions,
+  SetOptions,
+} from "./types.js";
 
 /**
  * Delimiter inserted between a namespace name and the keys inside it (and
@@ -59,6 +66,26 @@ export function createStore<T = unknown>(
 
   const entries = new Map<string, Entry<T>>();
 
+  // One store-wide listener registry shared by every view. Sets keep
+  // duplicate registrations idempotent and make off() O(1).
+  const listeners = new Map<DriftStoreEvent, Set<DriftStoreListener>>();
+
+  /**
+   * Notify listeners for `event`. Listener exceptions are swallowed: an
+   * observer must never be able to corrupt or abort a store operation.
+   */
+  function emit(event: DriftStoreEvent, payload: DriftStoreEventPayload): void {
+    const registered = listeners.get(event);
+    if (registered === undefined) return;
+    for (const listener of registered) {
+      try {
+        listener(payload);
+      } catch {
+        // Deliberately ignored — see the contract on DriftStore.on().
+      }
+    }
+  }
+
   // Rehydrate from disk before applying limits: loaded entries count toward
   // maxEntries exactly like freshly set ones, oldest-first.
   if (persistPath !== undefined) {
@@ -79,6 +106,7 @@ export function createStore<T = unknown>(
     if (entry === undefined) return undefined;
     if (isExpired(entry, Date.now())) {
       entries.delete(key);
+      emit("expire", { key });
       return undefined;
     }
     return entry;
@@ -86,15 +114,17 @@ export function createStore<T = unknown>(
 
   /**
    * Remove every expired entry whose key starts with `prefix`; returns the
-   * number removed. The empty prefix sweeps the whole store.
+   * number removed. The empty prefix sweeps the whole store. Each reclaimed
+   * entry emits `"expire"` (the loop is local rather than delegated to
+   * expiry.ts precisely so reclamation stays observable).
    */
   function sweepPrefix(prefix: string): number {
-    if (prefix === "") return sweepExpired(entries);
     const now = Date.now();
     let removed = 0;
     for (const [key, entry] of entries) {
-      if (key.startsWith(prefix) && isExpired(entry, now)) {
+      if ((prefix === "" || key.startsWith(prefix)) && isExpired(entry, now)) {
         entries.delete(key);
+        emit("expire", { key });
         removed += 1;
       }
     }
@@ -138,6 +168,7 @@ export function createStore<T = unknown>(
         const fullKey = prefix + key;
         const existed = entries.delete(fullKey);
         entries.set(fullKey, entry);
+        emit("set", { key: fullKey });
 
         // Capacity is a property of the whole store, not the view, so the
         // reclaim/evict pass always runs store-wide: a set in one namespace
@@ -145,7 +176,9 @@ export function createStore<T = unknown>(
         if (maxEntries !== undefined && !existed && entries.size > maxEntries) {
           // Prefer reclaiming expired entries over evicting live ones.
           if (sweepPrefix("") === 0 || entries.size > maxEntries) {
-            evictDownTo(entries, maxEntries);
+            evictDownTo(entries, maxEntries, (evictedKey) =>
+              emit("evict", { key: evictedKey }),
+            );
           }
         }
       },
@@ -160,6 +193,7 @@ export function createStore<T = unknown>(
         const fullKey = prefix + key;
         const wasLive = readLiveEntry(fullKey) !== undefined;
         entries.delete(fullKey);
+        if (wasLive) emit("delete", { key: fullKey });
         return wasLive;
       },
 
@@ -211,6 +245,19 @@ export function createStore<T = unknown>(
         writeSnapshot(persistPath, [...entries.entries()]);
       },
 
+      on(event, listener) {
+        let registered = listeners.get(event);
+        if (registered === undefined) {
+          registered = new Set();
+          listeners.set(event, registered);
+        }
+        registered.add(listener);
+      },
+
+      off(event, listener) {
+        listeners.get(event)?.delete(listener);
+      },
+
       namespace(name) {
         if (typeof name !== "string" || name.length === 0) {
           throw new TypeError(
@@ -227,11 +274,21 @@ export function createStore<T = unknown>(
   return makeView("");
 }
 
-/** Evict least-recently-used entries until the map holds at most `limit`. */
-function evictDownTo(entries: Map<string, unknown>, limit: number): void {
+/**
+ * Evict least-recently-used entries until the map holds at most `limit`.
+ * `onEvict` (when provided) observes each removed key — used by the store
+ * to emit `"evict"` events; load-time trimming passes nothing since no
+ * listener can exist before `createStore` returns.
+ */
+function evictDownTo(
+  entries: Map<string, unknown>,
+  limit: number,
+  onEvict?: (key: string) => void,
+): void {
   while (entries.size > limit) {
     const oldest = entries.keys().next();
     if (oldest.done === true) break;
     entries.delete(oldest.value);
+    onEvict?.(oldest.value);
   }
 }

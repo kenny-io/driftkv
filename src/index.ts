@@ -8,6 +8,9 @@ export { createStore, NAMESPACE_DELIMITER } from "./store.js";
 export type {
   DriftNamespace,
   DriftStore,
+  DriftStoreEvent,
+  DriftStoreEventPayload,
+  DriftStoreListener,
   DriftStoreOptions,
   SetOptions,
 } from "./types.js";

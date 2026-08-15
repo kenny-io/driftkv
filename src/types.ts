@@ -40,6 +40,27 @@ export interface SetOptions {
 }
 
 /**
+ * Lifecycle events a store emits. `"set"` fires after every write,
+ * `"delete"` after an explicit `delete()` of a live entry, `"expire"` when
+ * an expired entry is reclaimed (lazily on read or eagerly via `sweep()`),
+ * and `"evict"` when the LRU policy removes an entry to satisfy
+ * `maxEntries`. Bulk `clear()` deliberately emits nothing.
+ */
+export type DriftStoreEvent = "set" | "delete" | "expire" | "evict";
+
+/**
+ * Payload delivered to event listeners. `key` is always the full key as
+ * stored in the root store — namespace prefixes included — so a single
+ * listener can observe activity across every view.
+ */
+export interface DriftStoreEventPayload {
+  key: string;
+}
+
+/** Listener registered with {@link DriftStore.on}. */
+export type DriftStoreListener = (payload: DriftStoreEventPayload) => void;
+
+/**
  * A Drift store instance. `T` is the value type held by the store; it
  * defaults to `unknown` so untyped usage stays honest.
  */
@@ -91,6 +112,22 @@ export interface DriftStore<T = unknown> {
    * the entire store (all namespaces), not just the view's entries.
    */
   flush(): void;
+
+  /**
+   * Subscribe to a lifecycle event. Listeners are store-wide regardless of
+   * which view they were registered on, fire synchronously in registration
+   * order, and receive the full (prefixed) key. A listener that throws is
+   * silently ignored so store operations can never fail because of an
+   * observer. Registering the same listener twice for one event is a
+   * no-op.
+   */
+  on(event: DriftStoreEvent, listener: DriftStoreListener): void;
+
+  /**
+   * Remove a listener previously registered with `on`. Unknown listeners
+   * are ignored.
+   */
+  off(event: DriftStoreEvent, listener: DriftStoreListener): void;
 
   /**
    * Return a scoped view of this store. The view shares the store's data,
