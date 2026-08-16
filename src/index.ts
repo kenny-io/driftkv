@@ -5,6 +5,13 @@
  */
 
 export { createStore, NAMESPACE_DELIMITER } from "./store.js";
+export { createBatch, transaction } from "./batch.js";
+export type {
+  BatchOperation,
+  BatchResult,
+  DriftBatch,
+  TransactionContext,
+} from "./batch.js";
 export type {
   DriftNamespace,
   DriftStore,
