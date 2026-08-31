@@ -23,7 +23,8 @@ cache.get("session:9f2c"); // "alice"
 
 - **Zero dependencies.** Nothing in your lockfile but Drift itself.
 - **TTL expiry.** Per-entry or store-wide time-to-live, checked lazily on
-  read with an explicit `sweep()` for eager reclamation.
+  read with an explicit `sweep()` for eager reclamation. Drift 0.3 adds
+  `expiresAt(key)` for inspecting an entry's absolute expiry deadline.
 - **LRU eviction.** Cap the store with `maxEntries` and the
   least-recently-used entry is evicted first.
 - **Namespaces.** Carve one store into isolated, scoped views with
@@ -64,6 +65,7 @@ users.set("u:2", { id: 2, name: "Grace" }, { ttlMs: 30_000 }); // custom TTL
 
 users.get("u:1"); // { id: 1, name: "Ada" }
 users.has("u:2"); // true
+users.expiresAt("u:2"); // absolute Unix timestamp in milliseconds
 users.keys(); // ["u:1", "u:2"]  (least- to most-recently-used)
 users.size(); // 2
 
@@ -99,6 +101,7 @@ at startup rather than at first use.
 | `set(key, value, options?)` | `void`           | Store `value` under `key`. Overwrites refresh both the TTL and LRU recency. May evict when `maxEntries` is reached. |
 | `has(key)`                  | `boolean`        | Whether a live entry exists. Does **not** affect LRU recency.                                                       |
 | `ttl(key)`                  | `number \| undefined` | Remaining time-to-live in ms, or `undefined` if the entry is absent, expired, or has no expiry. Does **not** affect LRU recency. |
+| `expiresAt(key)`            | `number \| undefined` | Absolute Unix timestamp in ms when the entry will expire, or `undefined` if it is absent, expired, or permanent. Does **not** affect LRU recency. |
 | `touch(key, options?)`      | `boolean`        | Mark a live entry most-recently-used without changing its value; restarts its TTL from `options.ttlMs` or `defaultTtlMs` when set. `false` if absent or expired. |
 | `delete(key)`               | `boolean`        | Remove the entry. `true` if a live entry was removed.                                                               |
 | `clear()`                   | `void`           | Remove all entries.                                                                                                 |

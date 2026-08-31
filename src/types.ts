@@ -95,6 +95,13 @@ export interface DriftStore<T = unknown> {
   ttl(key: string): number | undefined;
 
   /**
+   * Absolute Unix timestamp in milliseconds when `key` will expire, or
+   * `undefined` when the entry is absent, expired, or has no expiry. Reading
+   * the deadline does not affect LRU recency.
+   */
+  expiresAt(key: string): number | undefined;
+
+  /**
    * Refresh a live entry's LRU recency without changing its value, and
    * restart its TTL from `options.ttlMs` or the store default when either is
    * set (an existing expiry is otherwise kept). Emits no event. Returns
