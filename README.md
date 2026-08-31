@@ -151,6 +151,50 @@ store.on("expire", ({ key }) => {
 });
 ```
 
+### Batches and transactions
+
+`createBatch(store)` collects writes and applies them in one pass, so related
+keys never land half-written:
+
+```typescript
+import { createBatch, createStore } from "driftkv";
+
+const store = createStore<string>();
+const result = createBatch(store)
+  .set("user:1", "alice")
+  .set("user:2", "bob")
+  .delete("user:0")
+  .commit();
+
+result.written; // ['user:1', 'user:2']
+result.removed; // ['user:0'] — only keys that held a live entry
+```
+
+A batch is queued until `commit()`; `size()` reports how many operations are
+waiting, and committing empties it.
+
+`transaction(store, body)` adds rollback and read-your-writes. The body sees
+its own pending writes through `tx.get()`, and **nothing reaches the store if
+the body throws**:
+
+```typescript
+import { transaction } from "driftkv";
+
+const next = transaction(store, (tx) => {
+  const current = tx.get("counter") ?? 0;
+  tx.set("counter", current + 1);
+  return tx.get("counter"); // 1 — the transaction's own write
+});
+
+transaction(store, (tx) => {
+  tx.set("half", "written");
+  throw new Error("abort"); // "half" is never stored
+});
+```
+
+The value `body` returns is passed through, so a transaction can compute a
+result as well as write one.
+
 ### Namespaces
 
 `store.namespace(name)` returns a **scoped view** of the same store. The
