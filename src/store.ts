@@ -209,6 +209,11 @@ export function createStore<T = unknown>(
         return entry.expiresAt - Date.now();
       },
 
+      expiresAt(key) {
+        const entry = readLiveEntry(prefix + key);
+        return entry?.expiresAt;
+      },
+
       touch(key, touchOptions?: SetOptions) {
         const fullKey = prefix + key;
         const entry = readLiveEntry(fullKey);

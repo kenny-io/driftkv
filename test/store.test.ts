@@ -163,6 +163,22 @@ describe("TTL expiry", () => {
     expect(store.ttl("a")).toBeUndefined();
   });
 
+  it("reports the absolute expiry deadline without touching recency", () => {
+    vi.setSystemTime(new Date("2026-09-01T10:00:00.000Z"));
+    const store = createStore<string>({ maxEntries: 2 });
+    store.set("a", "1", { ttlMs: 1000 });
+    store.set("b", "2");
+
+    expect(store.expiresAt("a")).toBe(Date.now() + 1000);
+    expect(store.expiresAt("b")).toBeUndefined();
+    expect(store.expiresAt("missing")).toBeUndefined();
+
+    // Deadline inspection must not make "a" most-recently-used.
+    store.set("c", "3");
+    expect(store.has("a")).toBe(false);
+    expect(store.has("b")).toBe(true);
+  });
+
   it("touch() refreshes ttl and recency without changing the value", () => {
     const store = createStore<string>({ maxEntries: 2 });
     store.set("a", "1", { ttlMs: 1000 });
