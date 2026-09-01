@@ -60,21 +60,6 @@ export interface DriftStoreEventPayload {
 /** Listener registered with {@link DriftStore.on}. */
 export type DriftStoreListener = (payload: DriftStoreEventPayload) => void;
 
-/** Store-wide capacity and expiry counters returned by {@link DriftStore.stats}. */
-export interface DriftStoreStats {
-  /** Number of live entries across the whole backing store. */
-  liveEntries: number;
-
-  /** Number of live entries that currently have an expiry deadline. */
-  expiringEntries: number;
-
-  /** Configured capacity, or `undefined` when the store is unlimited. */
-  maxEntries: number | undefined;
-
-  /** Unused capacity, or `undefined` when the store is unlimited. */
-  availableEntries: number | undefined;
-}
-
 /**
  * A Drift store instance. `T` is the value type held by the store; it
  * defaults to `unknown` so untyped usage stays honest.
@@ -148,14 +133,6 @@ export interface DriftStore<T = unknown> {
 
   /** Whether the store or namespace view contains no live entries. */
   isEmpty(): boolean;
-
-  /**
-   * Return store-wide capacity and expiry counters after reclaiming expired
-   * entries. The snapshot does not change LRU recency. Because namespaces
-   * share one backing store and one capacity budget, calling `stats()` on a
-   * namespace returns the same store-wide snapshot as calling it on the root.
-   */
-  stats(): DriftStoreStats;
 
   /**
    * Eagerly remove every expired entry and return how many were removed.

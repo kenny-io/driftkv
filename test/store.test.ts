@@ -94,50 +94,6 @@ describe("basic operations", () => {
     expect(users.isEmpty()).toBe(true);
   });
 
-  it("reports store-wide capacity and expiry stats without touching recency", () => {
-    vi.useFakeTimers();
-    try {
-      const store = createStore<number>({ maxEntries: 3 });
-      const users = store.namespace("users");
-      store.set("permanent", 1);
-      users.set("session", 2, { ttlMs: 100 });
-
-      expect(store.stats()).toEqual({
-        liveEntries: 2,
-        expiringEntries: 1,
-        maxEntries: 3,
-        availableEntries: 1,
-      });
-      // Namespace views share the same backing store and capacity budget.
-      expect(users.stats()).toEqual(store.stats());
-
-      // Stats must not refresh recency: "permanent" remains the LRU entry.
-      store.set("third", 3);
-      store.set("fourth", 4);
-      expect(store.has("permanent")).toBe(false);
-
-      vi.advanceTimersByTime(101);
-      expect(store.stats()).toEqual({
-        liveEntries: 2,
-        expiringEntries: 0,
-        maxEntries: 3,
-        availableEntries: 1,
-      });
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it("reports undefined capacity fields for an unlimited store", () => {
-    const store = createStore();
-    expect(store.stats()).toEqual({
-      liveEntries: 0,
-      expiringEntries: 0,
-      maxEntries: undefined,
-      availableEntries: undefined,
-    });
-  });
-
   it("stores falsy and complex values faithfully", () => {
     const store = createStore<unknown>();
     store.set("zero", 0);
