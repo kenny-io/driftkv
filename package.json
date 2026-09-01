@@ -1,7 +1,7 @@
 {
   "name": "driftkv",
-  "version": "0.4.0",
-  "description": "Drift — a zero-dependency embedded key-value store for Node.js with TTL, LRU eviction, and optional JSON persistence.",
+  "version": "0.3.1",
+  "description": "Drift \u2014 a zero-dependency embedded key-value store for Node.js with TTL, LRU eviction, and optional JSON persistence.",
   "keywords": [
     "key-value",
     "kv",

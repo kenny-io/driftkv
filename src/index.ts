@@ -19,6 +19,5 @@ export type {
   DriftStoreEventPayload,
   DriftStoreListener,
   DriftStoreOptions,
-  DriftStoreStats,
   SetOptions,
 } from "./types.js";
