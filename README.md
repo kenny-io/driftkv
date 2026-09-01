@@ -268,6 +268,18 @@ const store = createStore({ defaultTtlMs: 60_000 });
 setInterval(() => store.sweep(), 30_000).unref();
 ```
 
+The 0.3 API exposes both forms of deadline inspection without changing LRU
+recency: `ttl(key)` returns the remaining milliseconds, while
+`expiresAt(key)` returns the absolute Unix timestamp in milliseconds. Both
+return `undefined` for missing, expired, or permanent entries.
+
+```ts
+store.set("session:9f2c", "alice", { ttlMs: 60_000 });
+
+store.ttl("session:9f2c"); // approximately 60_000
+store.expiresAt("session:9f2c"); // Date.now() + approximately 60_000
+```
+
 ### LRU semantics
 
 When `maxEntries` is set and a `set` of a **new** key would exceed it, Drift
