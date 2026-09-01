@@ -27,6 +27,8 @@ cache.get("session:9f2c"); // "alice"
   `expiresAt(key)` for inspecting an entry's absolute expiry deadline.
 - **LRU eviction.** Cap the store with `maxEntries` and the
   least-recently-used entry is evicted first.
+- **Capacity snapshots.** Drift 0.4 adds `stats()` for live-entry, expiry,
+  and remaining-capacity counters without perturbing LRU recency.
 - **Namespaces.** Carve one store into isolated, scoped views with
   `store.namespace("users")` — no extra stores, no manual key prefixing.
 - **Optional persistence.** Point the store at a JSON file and it reloads
@@ -68,6 +70,7 @@ users.has("u:2"); // true
 users.expiresAt("u:2"); // absolute Unix timestamp in milliseconds
 users.keys(); // ["u:1", "u:2"]  (least- to most-recently-used)
 users.size(); // 2
+users.stats(); // { liveEntries: 2, expiringEntries: 2, maxEntries: 500, availableEntries: 498 }
 
 users.flush(); // persist current entries to ./data/users.json
 ```
@@ -110,6 +113,7 @@ at startup rather than at first use.
 | `entries()`                 | `Array<[string, T]>` | Live `[key, value]` pairs, ordered least- to most-recently-used; keys are relative to the view.                 |
 | `size()`                    | `number`         | Count of live entries.                                                                                              |
 | `isEmpty()`                 | `boolean`        | Whether the store or namespace view contains no live entries.                                                       |
+| `stats()`                   | `DriftStoreStats` | Store-wide live-entry, expiry, capacity, and available-capacity counters. Reclaims expired entries without changing LRU recency. |
 | `sweep()`                   | `number`         | Eagerly remove every expired entry; returns how many were removed.                                                  |
 | `flush()`                   | `void`           | Synchronously persist current entries to `persistPath`. Throws if the store has no `persistPath`.                   |
 | `namespace(name)`           | `DriftNamespace<T>` | A scoped view of the store whose keys are isolated under `name`. See [Namespaces](#namespaces).                  |
@@ -153,6 +157,31 @@ store.on("expire", ({ key }) => {
   metrics.increment("drift.expired", { key });
 });
 ```
+
+### Capacity and expiry stats
+
+`stats()` returns an inexpensive operational snapshot for health endpoints
+and metrics collectors. It first reclaims expired entries, then reports the
+number of live and expiring entries plus the configured and available
+capacity. Reading the snapshot never changes LRU recency.
+
+```ts
+const store = createStore({ maxEntries: 1000, defaultTtlMs: 60_000 });
+store.set("session:9f2c", "alice");
+
+store.stats();
+// {
+//   liveEntries: 1,
+//   expiringEntries: 1,
+//   maxEntries: 1000,
+//   availableEntries: 999,
+// }
+```
+
+For an unlimited store, `maxEntries` and `availableEntries` are `undefined`.
+The snapshot is intentionally store-wide: a namespace view returns the same
+stats as the root because every namespace shares one backing store and one
+capacity budget.
 
 ### Batches and transactions
 
